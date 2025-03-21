@@ -46,7 +46,7 @@ class DropDown: UIView, UITableViewDelegate, UITableViewDataSource {
         tableView.delegate = self
         tableView.dataSource = self
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
-        tableView.layer.cornerRadius = 8
+        tableView.layer.cornerRadius = 5
         tableView.layer.borderWidth = 1
         tableView.layer.borderColor = UIColor.lightGray.cgColor
         addSubview(tableView)
@@ -67,7 +67,7 @@ class DropDown: UIView, UITableViewDelegate, UITableViewDataSource {
         cell.textLabel?.text = dataSource[indexPath.row]
         cell.textLabel?.textColor = textColor
         cell.textLabel?.font = textFont
-        cell.backgroundColor = (indexPath.row == selectedRow) ? .appLightGray : .white
+        cell.backgroundColor = (indexPath.row == selectedRow) ? .gray.withAlphaComponent(0.1) : .white
         return cell
     }
     
@@ -80,38 +80,43 @@ class DropDown: UIView, UITableViewDelegate, UITableViewDataSource {
     
     // MARK: - Show / Hide
     func show() {
-        guard let anchorView = anchorView, let window = UIApplication.shared.windows.first(where: { $0.isKeyWindow }) else { return }
-        
+        guard let anchorView = anchorView, let window = UIWindow.key else { return }
+
         willShowAction?()
-        
+
         let anchorFrame = anchorView.convert(anchorView.bounds, to: window)
         let width = customWidth ?? anchorFrame.width
-        
+
         self.frame = CGRect(x: anchorFrame.origin.x,
                             y: anchorFrame.maxY + bottomOffset.y,
                             width: width,
                             height: min(CGFloat(dataSource.count) * 44, 200))
-        
+
         self.alpha = 0
         self.isHidden = false
+
         for subview in window.subviews {
             if let dropdown = subview as? DropDown {
                 dropdown.hide()
             }
         }
+
+        // Add a background view to capture taps outside
+        let backgroundView = UIView(frame: window.bounds)
+        backgroundView.backgroundColor = UIColor.clear
+        backgroundView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(hide)))
+        backgroundView.tag = 999 // Identifier to remove later
+        window.addSubview(backgroundView)
+
         window.addSubview(self)
 
-        
-        backgroundTapGesture = UITapGestureRecognizer(target: self, action: #selector(hide))
-        backgroundTapGesture?.cancelsTouchesInView = false
-        window.addGestureRecognizer(backgroundTapGesture!)
-        
         UIView.animate(withDuration: 0.3) { self.alpha = 1 }
         isVisible = true
     }
-    
+
     @objc func hide() {
         guard isVisible else { return }
+
         UIView.animate(withDuration: 0.2, animations: {
             self.alpha = 0
         }) { _ in
@@ -119,18 +124,45 @@ class DropDown: UIView, UITableViewDelegate, UITableViewDataSource {
             self.removeFromSuperview()
             self.cancelAction?()
         }
-        
-        if let window = UIApplication.shared.windows.first(where: { $0.isKeyWindow }), let gesture = backgroundTapGesture {
-            window.removeGestureRecognizer(gesture)
+
+        if let window = UIWindow.key {
+            // Remove background view
+            if let backgroundView = window.viewWithTag(999) {
+                backgroundView.removeFromSuperview()
+            }
         }
-        
+
         isVisible = false
     }
-    
+
     // MARK: - Select Row
     func selectRow(at index: Int) {
         guard index >= 0, index < dataSource.count else { return }
         selectedRow = index
         tableView.reloadData()
+    }
+}
+
+extension UIWindow {
+    static var window: UIWindow? {
+        if #available(iOS 13, *) {
+            return UIApplication.shared.currentUIWindow()
+        } else {
+            return UIApplication.shared.keyWindow
+        }
+    }
+}
+public extension UIApplication {
+    func currentWindow() -> UIWindow? {
+        let connectedScenes = UIApplication.shared.connectedScenes
+            .filter { $0.activationState == .foregroundActive }
+            .compactMap { $0 as? UIWindowScene }
+        
+        let window = connectedScenes.first?
+            .windows
+            .first { $0.isKeyWindow }
+
+        return window
+        
     }
 }
