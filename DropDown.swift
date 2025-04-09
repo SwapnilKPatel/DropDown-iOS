@@ -84,30 +84,48 @@ class DropDown: UIView, UITableViewDelegate, UITableViewDataSource {
 
         willShowAction?()
 
-        let anchorFrame = anchorView.convert(anchorView.bounds, to: window)
-        let width = customWidth ?? anchorFrame.width
-
-        self.frame = CGRect(x: anchorFrame.origin.x,
-                            y: anchorFrame.maxY + bottomOffset.y,
-                            width: width,
-                            height: min(CGFloat(dataSource.count) * 44, 200))
-
-        self.alpha = 0
-        self.isHidden = false
-
+        // Remove any previous dropdowns
         for subview in window.subviews {
             if let dropdown = subview as? DropDown {
                 dropdown.hide()
             }
         }
 
-        // Add a background view to capture taps outside
+        let anchorFrame = anchorView.convert(anchorView.bounds, to: window)
+        let maxHeight: CGFloat = min(CGFloat(dataSource.count) * 44, 200)
+        let width = customWidth ?? anchorFrame.width
+
+        let spaceBelow = window.bounds.height - anchorFrame.maxY
+        let spaceAbove = anchorFrame.minY
+
+        var finalHeight = maxHeight
+        var dropdownY = anchorFrame.maxY + bottomOffset.y
+
+        var showAbove = false
+
+        if spaceBelow < maxHeight && spaceAbove > spaceBelow {
+            // Not enough room below, show above if more space
+            showAbove = true
+            finalHeight = min(spaceAbove - topOffset.y, maxHeight)
+            dropdownY = anchorFrame.minY - finalHeight - topOffset.y
+        } else {
+            // Enough space below
+            finalHeight = min(spaceBelow - bottomOffset.y, maxHeight)
+            dropdownY = anchorFrame.maxY + bottomOffset.y
+        }
+
+        // Set frame
+        self.frame = CGRect(x: anchorFrame.origin.x, y: dropdownY, width: width, height: finalHeight)
+
+        // Add tap-capture background
         let backgroundView = UIView(frame: window.bounds)
         backgroundView.backgroundColor = UIColor.clear
         backgroundView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(hide)))
-        backgroundView.tag = 999 // Identifier to remove later
+        backgroundView.tag = 999
         window.addSubview(backgroundView)
 
+        self.alpha = 0
+        self.isHidden = false
         window.addSubview(self)
 
         UIView.animate(withDuration: 0.3) { self.alpha = 1 }
